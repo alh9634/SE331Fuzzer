@@ -1,7 +1,10 @@
 package se331.projects.fuzzer;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -17,6 +20,9 @@ import com.gargoylesoftware.htmlunit.html.HtmlSubmitInput;
 import com.gargoylesoftware.htmlunit.util.Cookie;
 
 public class Fuzzer {
+	
+	private static ArrayList<String> urlsVisited;
+	private static final String baseURL = "http://localhost:8080/bodgeit/";
 
 	public static void main(String[] args) throws FailingHttpStatusCodeException, MalformedURLException, IOException {
 		WebClient webClient = new WebClient();
@@ -24,6 +30,8 @@ public class Fuzzer {
 		discoverLinks(webClient);
 		doFormPost(webClient);
 		printCookies(webClient.getCookieManager());
+		printLinkDiscovery(webClient);
+		printPageGuessing(webClient, "conf/GuessURLs.txt");
 		webClient.closeAllWindows();
 	}
 
@@ -110,5 +118,76 @@ public class Fuzzer {
 		}
 		System.out.println(String.format("%30s\n", "").replace(' ', '*'));
 
+	}
+	
+	/**
+	 * Prints all of the links that the crawl reveals.  Does not visit external sites
+	 * @author alh9634
+	 * @param webClient the WebClient instance to use
+	 */
+	private static void printLinkDiscovery( WebClient webClient){
+		System.out.println("\n\n\n\nBegin Link Discovery");
+		urlsVisited = new ArrayList<String>();
+		printLinkDiscovery_helper(webClient, "");
+		for (String url : urlsVisited) {
+			System.out.println("Link Discovered through crawl: " + url);
+		}
+	}
+
+	/**
+	 * Helper used to crawl through all of the web pages
+	 * 
+	 * @author alh9634
+	 * @param webClient the WebClient instance to use
+	 * @param hrefAttribute the href attribute to visit
+	 */
+	private static void printLinkDiscovery_helper(WebClient webClient,
+			String hrefAttribute) {
+		urlsVisited.add(hrefAttribute);
+		HtmlPage page;
+		try {
+			page = webClient.getPage(baseURL + hrefAttribute);
+		} catch (Exception e) {
+			System.out.println("External/Invalid URL: " + hrefAttribute);
+			return;
+		}
+		List<HtmlAnchor> links = page.getAnchors();
+		for (HtmlAnchor link : links) {
+			if (!urlsVisited.contains(link.getHrefAttribute())) {
+				printLinkDiscovery_helper(webClient, link.getHrefAttribute());
+			}
+		}
+	}
+
+	/**
+	 * Goes through the guess URL file and determines which are actually visitable
+	 * 
+	 * @author alh9634
+	 * @param webClient the WebClient instance to use
+	 * @param guessURLsLocation file location that contains all of the guess URLs to check
+	 */
+	private static void printPageGuessing(WebClient webClient, String guessURLsLocation) {
+		ArrayList<String> guessURLs = new ArrayList<String>();
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(guessURLsLocation));
+			String line = br.readLine();
+
+			while (line != null) {
+				guessURLs.add(line);
+				line = br.readLine();
+			}
+			br.close();
+		} catch (Exception e) {
+			System.out.println(e);
+		}
+		
+		for(String guess : guessURLs){
+			try {
+				webClient.getPage(baseURL + guess);
+				System.out.println("Successful guess: " + guess);
+			} catch (Exception e){
+				System.out.println("The following guess did not work: " + guess);
+			}
+		}
 	}
 }
