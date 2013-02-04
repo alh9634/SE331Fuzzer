@@ -216,6 +216,10 @@ public class Fuzzer {
 					urlParameterMap.get(key).add(stripValue);
 				}
 			}
+		}else{
+			if(!urlParameterMap.keySet().contains(hrefAttribute)){
+				urlParameterMap.put(hrefAttribute, new ArrayList<String>());
+			}
 		}
 	}
 	
@@ -228,8 +232,8 @@ public class Fuzzer {
 		System.out.println("URL Parameter Map: ");
 		Set<String> keys = urlParameterMap.keySet();
 		for(String key : keys){
-			System.out.println("URL: " + key);
-			System.out.println("Parameters: " + urlParameterMap.get(key));
+			System.out.println("\tURL: " + key);
+			System.out.println("\tParameters: " + urlParameterMap.get(key));
 		}
 	}
 }
