@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -13,25 +14,27 @@ import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
 import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlAnchor;
 import com.gargoylesoftware.htmlunit.html.HtmlElement;
-import com.gargoylesoftware.htmlunit.html.HtmlForm;
+//import com.gargoylesoftware.htmlunit.html.HtmlForm;
 import com.gargoylesoftware.htmlunit.html.HtmlInput;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
-import com.gargoylesoftware.htmlunit.html.HtmlSubmitInput;
+//import com.gargoylesoftware.htmlunit.html.HtmlSubmitInput;
 import com.gargoylesoftware.htmlunit.util.Cookie;
 
 public class Fuzzer {
 	
 	private static ArrayList<String> urlsVisited;
 	private static final String baseURL = "http://localhost:8080/bodgeit/";
+	private static HashMap<String, List<String>> urlParameterMap = new HashMap<String, List<String>>();
 
 	public static void main(String[] args) throws FailingHttpStatusCodeException, MalformedURLException, IOException {
 		WebClient webClient = new WebClient();
 		webClient.setJavaScriptEnabled(true);
-		discoverLinks(webClient);
-		doFormPost(webClient);
-		printCookies(webClient.getCookieManager());
+		//discoverLinks(webClient);
+		//doFormPost(webClient);
+		//printCookies(webClient.getCookieManager());
 		printLinkDiscovery(webClient);
 		printPageGuessing(webClient, "conf/GuessURLs.txt");
+		printURLMap();
 		webClient.closeAllWindows();
 	}
 
@@ -41,15 +44,16 @@ public class Fuzzer {
 	 * @throws IOException
 	 * @throws MalformedURLException
 	 */
+	/*
 	private static void discoverLinks(WebClient webClient) throws IOException, MalformedURLException {
-		HtmlPage page = webClient.getPage("http://localhost:8080/bodgeit");
+		HtmlPage page = webClient.getPage(baseURL);
 		List<HtmlAnchor> links = page.getAnchors();
 		for (HtmlAnchor link : links) {
 			System.out.println("Link discovered: " + link.asText() + " @URL=" + link.getHrefAttribute());
 		}
 		
 		printFormInputs(page);
-	}
+	}*/
 
 	/**
 	 * This code is for demonstrating techniques for submitting an HTML form. Fuzzer code would need to be
@@ -59,6 +63,7 @@ public class Fuzzer {
 	 * @throws MalformedURLException
 	 * @throws IOException
 	 */
+	/*
 	private static void doFormPost(WebClient webClient) throws FailingHttpStatusCodeException, MalformedURLException, IOException {
 		HtmlPage page = webClient.getPage("http://localhost:8080/bodgeit/product.jsp?prodid=26");
 		List<HtmlForm> forms = page.getForms();
@@ -70,7 +75,7 @@ public class Fuzzer {
 		}
 		
 		printFormInputs(page);
-	}
+	}*/
 	
 	/**
 	 * This prints out all the cookies contained in the CookieManager.
@@ -129,9 +134,6 @@ public class Fuzzer {
 		System.out.println("\n\n\n\nBegin Link Discovery");
 		urlsVisited = new ArrayList<String>();
 		printLinkDiscovery_helper(webClient, "");
-		for (String url : urlsVisited) {
-			System.out.println("Link Discovered through crawl: " + url);
-		}
 	}
 
 	/**
@@ -141,12 +143,15 @@ public class Fuzzer {
 	 * @param webClient the WebClient instance to use
 	 * @param hrefAttribute the href attribute to visit
 	 */
-	private static void printLinkDiscovery_helper(WebClient webClient,
-			String hrefAttribute) {
+	private static void printLinkDiscovery_helper(WebClient webClient, String hrefAttribute) {
+		System.out.println("Link discovered through crawl: " + hrefAttribute);
 		urlsVisited.add(hrefAttribute);
+		printCookies(webClient.getCookieManager());
+		ParseURL(hrefAttribute);
 		HtmlPage page;
 		try {
 			page = webClient.getPage(baseURL + hrefAttribute);
+			printFormInputs(page);
 		} catch (Exception e) {
 			System.out.println("External/Invalid URL: " + hrefAttribute);
 			return;
@@ -160,7 +165,7 @@ public class Fuzzer {
 	}
 
 	/**
-	 * Goes through the guess URL file and determines which are actually visitable
+	 * Goes through the guess URL file and determines which are actually valid
 	 * 
 	 * @author alh9634
 	 * @param webClient the WebClient instance to use
@@ -188,6 +193,43 @@ public class Fuzzer {
 			} catch (Exception e){
 				System.out.println("The following guess did not work: " + guess);
 			}
+		}
+	}
+	
+	/**
+	 * Adds the specific href into the URL Parameter Map
+	 * 
+	 * @author alh9634
+	 * @param hrefAttribute
+	 */
+	private static void ParseURL(String hrefAttribute){
+		if(hrefAttribute.indexOf('?')>=0){
+			String key = hrefAttribute.substring(0, hrefAttribute.indexOf("?"));
+			if(!urlParameterMap.keySet().contains(key)){
+				urlParameterMap.put(key, new ArrayList<String>());
+			}
+			String paramString = hrefAttribute.substring(hrefAttribute.indexOf('?') + 1);
+			String[] params = paramString.split("&");
+			for(String param : params){
+				String stripValue = param.substring(0, param.indexOf('='));
+				if(!urlParameterMap.get(key).contains(stripValue)){
+					urlParameterMap.get(key).add(stripValue);
+				}
+			}
+		}
+	}
+	
+	/**
+	 * Prints the URL Parameter Map
+	 * 
+	 *@author alh9634
+	 */
+	private static void printURLMap(){
+		System.out.println("URL Parameter Map: ");
+		Set<String> keys = urlParameterMap.keySet();
+		for(String key : keys){
+			System.out.println("URL: " + key);
+			System.out.println("Parameters: " + urlParameterMap.get(key));
 		}
 	}
 }
