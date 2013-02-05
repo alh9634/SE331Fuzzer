@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URL;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -24,19 +25,22 @@ import com.gargoylesoftware.htmlunit.util.Cookie;
 
 public class Fuzzer {
 	
-	private static ArrayList<String> urlsVisited;
-	private static final String baseURL = "http://localhost:8080/bodgeit/";
+	private static ArrayList<URL> urlsVisited;
+	//private static final String baseURL = "http://127.0.0.1:8080/jpetstore/";
+	private static final String baseURL = "http://127.0.0.1:8080/bodgeit/";
 	private static HashMap<String, List<String>> urlParameterMap = new HashMap<String, List<String>>();
 	private static Set<Cookie> cookiesSet = new HashSet<Cookie>();
 
 	public static void main(String[] args) throws FailingHttpStatusCodeException, MalformedURLException, IOException {
 		WebClient webClient = new WebClient();
+		webClient.setPrintContentOnFailingStatusCode(false);
 		webClient.setJavaScriptEnabled(true);
 		//discoverLinks(webClient);
 		//doFormPost(webClient);
 		//printCookies(webClient.getCookieManager());
 		printLinkDiscovery(webClient);
 		printPageGuessing(webClient, "conf/GuessURLs.txt");
+		printCookies(webClient.getCookieManager());
 		printURLMap();
 		webClient.closeAllWindows();
 	}
@@ -148,8 +152,14 @@ public class Fuzzer {
 	 */
 	private static void printLinkDiscovery( WebClient webClient){
 		System.out.println("\n\n\n\nBegin Link Discovery");
-		urlsVisited = new ArrayList<String>();
-		printLinkDiscovery_helper(webClient, "");
+		urlsVisited = new ArrayList<URL>();
+		URL myURL = null;
+		try {
+			myURL = new URL(baseURL);
+		} catch (MalformedURLException e) {
+			e.printStackTrace();
+		}
+		printLinkDiscovery_helper(webClient, myURL);
 	}
 
 	/**
@@ -157,25 +167,35 @@ public class Fuzzer {
 	 * 
 	 * @author alh9634
 	 * @param webClient the WebClient instance to use
-	 * @param hrefAttribute the href attribute to visit
+	 * @param myURL the URL visited
 	 */
-	private static void printLinkDiscovery_helper(WebClient webClient, String hrefAttribute) {
-		System.out.println("Link discovered through crawl: " + hrefAttribute);
-		urlsVisited.add(hrefAttribute);
-		printCookies(webClient.getCookieManager());
-		ParseURL(hrefAttribute);
+	private static void printLinkDiscovery_helper(WebClient webClient, URL myURL) {
+		if(myURL == null){
+			return;
+		}
+		System.out.println("Link discovered through crawl: " + myURL);
+		urlsVisited.add(myURL);
+		//printCookies(webClient.getCookieManager());
+		ParseURL(myURL);
 		HtmlPage page;
 		try {
-			page = webClient.getPage(baseURL + hrefAttribute);
+			page = webClient.getPage(myURL);
 			printFormInputs(page);
 		} catch (Exception e) {
-			System.out.println("External/Invalid URL: " + hrefAttribute);
+			System.out.println("External/Invalid URL: " + myURL);
 			return;
 		}
 		List<HtmlAnchor> links = page.getAnchors();
 		for (HtmlAnchor link : links) {
-			if (!urlsVisited.contains(link.getHrefAttribute())) {
-				printLinkDiscovery_helper(webClient, link.getHrefAttribute());
+			URL tempURL = null;
+			try {
+				tempURL = page.getFullyQualifiedUrl(link.getHrefAttribute());
+			} catch (MalformedURLException e) {
+				e.printStackTrace();
+				return;
+			}
+			if (!urlsVisited.contains(tempURL)) {
+				printLinkDiscovery_helper(webClient, tempURL);
 			}
 		}
 	}
@@ -213,28 +233,24 @@ public class Fuzzer {
 	}
 	
 	/**
-	 * Adds the specific href into the URL Parameter Map
+	 * Adds the specific url into the URL Parameter Map
 	 * 
 	 * @author alh9634
-	 * @param hrefAttribute
+	 * @param myURL the URL to parse
 	 */
-	private static void ParseURL(String hrefAttribute){
-		if(hrefAttribute.indexOf('?')>=0){
-			String key = hrefAttribute.substring(0, hrefAttribute.indexOf("?"));
-			if(!urlParameterMap.keySet().contains(key)){
-				urlParameterMap.put(key, new ArrayList<String>());
-			}
-			String paramString = hrefAttribute.substring(hrefAttribute.indexOf('?') + 1);
-			String[] params = paramString.split("&");
-			for(String param : params){
-				String stripValue = param.substring(0, param.indexOf('='));
-				if(!urlParameterMap.get(key).contains(stripValue)){
-					urlParameterMap.get(key).add(stripValue);
-				}
-			}
-		}else{
-			if(!urlParameterMap.keySet().contains(hrefAttribute)){
-				urlParameterMap.put(hrefAttribute, new ArrayList<String>());
+	private static void ParseURL(URL myURL){
+		if(!urlParameterMap.keySet().contains(myURL.getPath())){
+			urlParameterMap.put(myURL.getPath(), new ArrayList<String>());
+		}
+		
+		if(myURL.getQuery()==null){
+			return;
+		}
+		String[] params = myURL.getQuery().split("&");
+		for(String param : params){
+			String stripValue = param.substring(0, param.indexOf('='));
+			if(!urlParameterMap.get(myURL.getPath()).contains(stripValue)){
+				urlParameterMap.get(myURL.getPath()).add(stripValue);
 			}
 		}
 	}
