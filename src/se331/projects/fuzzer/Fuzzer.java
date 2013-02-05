@@ -26,8 +26,8 @@ import com.gargoylesoftware.htmlunit.util.Cookie;
 public class Fuzzer {
 	
 	private static ArrayList<URL> urlsVisited;
-	private static final String baseURL = "http://127.0.0.1:8080/jpetstore/";
-	//private static final String baseURL = "http://127.0.0.1:8080/bodgeit/";
+	//private static final String baseURL = "http://127.0.0.1:8080/jpetstore/";
+	private static final String baseURL = "http://127.0.0.1:8080/bodgeit/";
 	private static HashMap<String, List<String>> urlParameterMap = new HashMap<String, List<String>>();
 	private static Set<Cookie> cookiesSet = new HashSet<Cookie>();
 
@@ -268,10 +268,8 @@ public class Fuzzer {
 		System.out.println("URL Parameter Map: ");
 		Set<String> keys = urlParameterMap.keySet();
 		for(String key : keys){
-			if ( !urlParameterMap.get(key).isEmpty() ) {
-				System.out.println("\tURL: " + key);
-				System.out.println("\tParameters: " + urlParameterMap.get(key));
-			}
+			System.out.println("\tURL: " + key);
+			System.out.println("\tParameters: " + urlParameterMap.get(key));
 		}
 	}
 }
