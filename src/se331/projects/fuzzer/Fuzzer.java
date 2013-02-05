@@ -26,8 +26,8 @@ import com.gargoylesoftware.htmlunit.util.Cookie;
 public class Fuzzer {
 	
 	private static ArrayList<URL> urlsVisited;
-	//private static final String baseURL = "http://127.0.0.1:8080/jpetstore/";
-	private static final String baseURL = "http://127.0.0.1:8080/bodgeit/";
+	private static final String baseURL = "http://127.0.0.1:8080/jpetstore/";
+	//private static final String baseURL = "http://127.0.0.1:8080/bodgeit/";
 	private static HashMap<String, List<String>> urlParameterMap = new HashMap<String, List<String>>();
 	private static Set<Cookie> cookiesSet = new HashSet<Cookie>();
 
@@ -39,8 +39,12 @@ public class Fuzzer {
 		//doFormPost(webClient);
 		//printCookies(webClient.getCookieManager());
 		printLinkDiscovery(webClient);
+		
+		System.out.println("\n\n\nBeginning Page Guessing");
 		printPageGuessing(webClient, "conf/GuessURLs.txt");
+		System.out.println("\n\n");
 		printCookies(webClient.getCookieManager());
+		System.out.println("\n\nURL Map:");
 		printURLMap();
 		webClient.closeAllWindows();
 	}
