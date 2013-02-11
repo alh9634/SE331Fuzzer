@@ -10,34 +10,43 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
 import com.gargoylesoftware.htmlunit.CookieManager;
 import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
+import com.gargoylesoftware.htmlunit.HttpMethod;
 import com.gargoylesoftware.htmlunit.WebClient;
+import com.gargoylesoftware.htmlunit.WebRequest;
 import com.gargoylesoftware.htmlunit.html.DomNodeList;
 import com.gargoylesoftware.htmlunit.html.HtmlAnchor;
 import com.gargoylesoftware.htmlunit.html.HtmlElement;
+import com.gargoylesoftware.htmlunit.html.HtmlForm;
 import com.gargoylesoftware.htmlunit.html.HtmlInput;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import com.gargoylesoftware.htmlunit.util.Cookie;
+import com.gargoylesoftware.htmlunit.util.NameValuePair;
+import com.gargoylesoftware.htmlunit.util.UrlUtils;
 
 public class Fuzzer {
 	
 	private static ArrayList<URL> urlsVisited;
 	//private static final String baseURL = "http://127.0.0.1:8080/jpetstore/";
-	private static final String baseURL = "http://127.0.0.1:8080/bodgeit/";
+	private static final String baseURL = "http://127.0.0.1/dvwa/";
 	private static HashMap<String, List<String>> urlParameterMap = new HashMap<String, List<String>>();
 	private static Set<Cookie> cookiesSet = new HashSet<Cookie>();
+	private static String username = "";
+	private static String password = "";
 
 	public static void main(String[] args) throws FailingHttpStatusCodeException, MalformedURLException, IOException {
 		WebClient webClient = new WebClient();
 		webClient.setPrintContentOnFailingStatusCode(false);
 		webClient.setJavaScriptEnabled(true);
-		//discoverLinks(webClient);
-		//doFormPost(webClient);
-		//printCookies(webClient.getCookieManager());
+		
+		username = "admin";
+		password = "password";
+		
 		printLinkDiscovery(webClient);
 		
 		System.out.println("\n\n\nBeginning Page Guessing");
@@ -97,9 +106,9 @@ public class Fuzzer {
 	private static void printCookies( CookieManager cookieManager ) {
 		Set<Cookie> cookies = cookieManager.getCookies();
 		System.out.println(String.format("%30s", "").replace(' ', '*'));
+		System.out.println("Cookies:");
 		for ( Cookie cookie : cookies ) {
 			if ( !cookiesSet.contains(cookie) ) {
-				System.out.println("Newly Set Cookies:");
 				cookiesSet.add(cookie);
 				String key = cookie.getName();
 				String val = cookie.getValue();
@@ -198,8 +207,15 @@ public class Fuzzer {
 				e.printStackTrace();
 				return;
 			}
-			if (!urlsVisited.contains(tempURL)) {
+			if (!urlsVisited.contains(tempURL) && tempURL.getHost().equals(myURL.getHost())) {
 				printLinkDiscovery_helper(webClient, tempURL);
+			}
+		}
+		
+		if ( isLoginPage(page) ) {
+			URL loggedInURL = doLogin( webClient, page, username, password );
+			if (loggedInURL != null && !urlsVisited.contains(loggedInURL) ) {
+				printLinkDiscovery_helper(webClient, loggedInURL);
 			}
 		}
 	}
@@ -271,5 +287,95 @@ public class Fuzzer {
 			System.out.println("\tURL: " + key);
 			System.out.println("\tParameters: " + urlParameterMap.get(key));
 		}
+	}
+	
+	/**
+	 * Perform login with given credentials
+	 * @author jmd2188
+	 * 
+	 * @param client WebClient to perform requests with
+	 * @param loginPage page with login form
+	 * @param user username to use
+	 * @param pw password to use
+	 * @return post-login url
+	 */
+	private static URL doLogin(WebClient client, HtmlPage loginPage, String user, String pw) {
+		String userField = "";
+		String pwField = "";
+		String method = "";
+		String loginBtn = "";
+		HtmlForm loginForm = null;
+		URL nextUrl = null;
+		URL targetUrl = null;
+		try {
+			List<HtmlElement> inputs = loginPage.getElementsByTagName("input");
+			for ( HtmlElement el : inputs ) {
+				HtmlInput i = (HtmlInput)el;
+				String type = i.getTypeAttribute();
+				
+				if ( type.equals("text") && i.getNameAttribute().matches(".*user.*") && userField.isEmpty() ) {
+					userField = i.getNameAttribute();
+					System.out.println("User Field: " + userField);
+				} else if ( type.matches(".*pass.*|.*pw.*") && pwField.isEmpty() ) {
+					pwField = i.getNameAttribute();
+					System.out.println("Password Field: " + pwField);
+					loginForm = i.getEnclosingFormOrDie();
+					
+					if ( targetUrl == null ) {
+						targetUrl = new URL(UrlUtils.resolveUrl(baseURL, loginForm.getActionAttribute()));
+						System.out.println("Login Target: " + targetUrl.toString());
+					}
+					if ( method.isEmpty() ) {
+						method = loginForm.getMethodAttribute().toUpperCase();
+					}
+				} else if ( type.equals("submit") && loginBtn.isEmpty() ) {
+					loginBtn = i.getNameAttribute();
+				}
+			}
+			
+			if ( !pwField.isEmpty() && ! userField.isEmpty() && targetUrl != null ) {
+				System.out.println(String.format("Attempting to login to '%s' with username '%s' and password '%s'", targetUrl, user, pw));
+//				WebRequest req = new WebRequest(targetUrl, HttpMethod.valueOf(method));
+//				List<NameValuePair> params = new LinkedList<NameValuePair>();
+//				params.add(new NameValuePair(userField, user));
+//				params.add(new NameValuePair(pwField, pw));
+//				req.setRequestParameters(params);
+//				System.out.println(req);
+//				
+//				client.setRedirectEnabled(true);
+				
+				loginForm.getInputByName(userField).setValueAttribute(user);
+				loginForm.getInputByName(pwField).setValueAttribute(pw);
+				HtmlPage loggedInPage = loginForm.getInputByName(loginBtn).click();
+				
+				nextUrl = loggedInPage.getUrl();
+				System.out.println("Post-login URL: " + nextUrl.toString());
+			}
+		} catch (FailingHttpStatusCodeException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		return nextUrl;
+	}
+	
+	/**
+	 * Does this page have a login form. Just look for an input of type 'password'
+	 * @author jmd2188
+	 * 
+	 * @param page HtmlPage to check for login form
+	 * @return true if login form exists; otherwise false
+	 */
+	private static boolean isLoginPage( HtmlPage page ) {
+		List<HtmlElement> inputs = page.getElementsByTagName("input");
+		for ( HtmlElement el : inputs ) {
+			if ( el.getAttribute("type").equalsIgnoreCase("password") ) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
