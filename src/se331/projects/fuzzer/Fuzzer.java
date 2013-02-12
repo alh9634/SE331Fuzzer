@@ -29,10 +29,8 @@ import com.gargoylesoftware.htmlunit.util.UrlUtils;
 public class Fuzzer {
 	
 	private static ArrayList<URL> urlsVisited;
-	private static final String baseURL = "http://127.0.0.1:8080/jpetstore/";
-	private static final String loginURL = "http://127.0.0.1:8080/jpetstore/actions/Account.action?signonForm=";
-	//private static final String baseURL = "http://127.0.0.1/dvwa/";
-	//private static final String loginURL = "http://127.0.0.1/dvwa/login.php";
+	private static String baseURL;
+	private static String loginURL;
 	private static HashMap<String, List<String>> urlParameterMap = new HashMap<String, List<String>>();
 	private static Set<Cookie> cookiesSet = new HashSet<Cookie>();
 	private static String username = "";
@@ -49,12 +47,43 @@ public class Fuzzer {
 	private static completenessOption completenessMode = completenessOption.RANDOM;
 
 	public static void main(String[] args) throws FailingHttpStatusCodeException, MalformedURLException, IOException {
+		fuzzDVWA();
+		fuzzJPetStore();
+		fuzzBodgeIt();
+	}
+	
+	private static void fuzzDVWA() throws MalformedURLException {
+		username = "admin";
+		password = "password";
+		baseURL = "http://127.0.0.1/dvwa/";
+		loginURL = "http://127.0.0.1/dvwa/login.php";
+		
+		runFuzzer();
+	}
+	
+	private static void fuzzJPetStore() throws MalformedURLException {
+		username = "j2ee";
+		password = "j2ee";
+		baseURL = "http://127.0.0.1:8080/jpetstore";
+		loginURL = "http://127.0.0.1:8080/jpetstore/actions/Account.action?signonForm=";
+
+		runFuzzer();
+	}
+	
+	private static void fuzzBodgeIt() throws MalformedURLException {
+		//TODO Set these to working credentials
+		username = "";
+		password = "";
+		baseURL = "http://127.0.0.1:8080/bodgeit";
+		loginURL = "http://127.0.0.1:8080/bodgeit/login.jsp";
+
+		runFuzzer();
+	}
+	
+	private static void runFuzzer() throws MalformedURLException {
 		WebClient webClient = new WebClient();
 		webClient.setPrintContentOnFailingStatusCode(false);
 		webClient.setJavaScriptEnabled(true);
-		
-		username = "j2ee";
-		password = "j2ee";
 		
 		printLinkDiscovery(webClient);
 		
