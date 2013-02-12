@@ -38,6 +38,12 @@ public class Fuzzer {
 	private static Set<Cookie> cookiesSet = new HashSet<Cookie>();
 	private static String username = "";
 	private static String password = "";
+	private static final String guessURLFileLocation = "conf/GuessURLs.txt";
+	private static final String commonPasswordsFileLocation = "conf/CommonPasswords.txt";
+	private static final String[] invalidLoginMessages = {
+		"You supplied an invalid name or password.",
+		"Login failed"
+	};
 
 	public static void main(String[] args) throws FailingHttpStatusCodeException, MalformedURLException, IOException {
 		WebClient webClient = new WebClient();
@@ -50,12 +56,14 @@ public class Fuzzer {
 		printLinkDiscovery(webClient);
 		
 		System.out.println("\n\n\nBeginning Page Guessing");
-		printPageGuessing(webClient, "conf/GuessURLs.txt");
+		printPageGuessing(webClient, guessURLFileLocation);
 		System.out.println("\n\n");
 		printCookies(webClient.getCookieManager());
 		System.out.println("\n\nURL Map:");
 		printURLMap();
 		webClient.closeAllWindows();
+		System.out.println("\n\nGuessing Common Passwords");
+		guessCommonPasswords(webClient, "admin", new URL("http://127.0.0.1:85/dvwa/login.php"));
 	}
 	
 	/**
@@ -187,7 +195,7 @@ public class Fuzzer {
 			}
 			br.close();
 		} catch (Exception e) {
-			System.out.println(e);
+			e.printStackTrace();
 		}
 		
 		for(String guess : guessURLs){
@@ -290,6 +298,18 @@ public class Fuzzer {
 				
 				nextUrl = loggedInPage.getUrl();
 				System.out.println("Post-login URL: " + nextUrl.toString());
+				
+				boolean successfulGuess = true;
+				for(String invalidMsg : invalidLoginMessages){
+					if(loggedInPage.asText().contains(invalidMsg)){
+						successfulGuess = false;
+					}
+				}
+				if(successfulGuess){
+					System.out.println("Successfull password guess");
+				}else{
+					System.out.println("Common passwords did not work");
+				}
 			}
 		} catch (FailingHttpStatusCodeException e) {
 			e.printStackTrace();
@@ -315,5 +335,38 @@ public class Fuzzer {
 			}
 		}
 		return false;
+	}
+	
+	
+	/**
+	 * @param webClient The WebClient to perform the web requests with
+	 * @param user The username to test the common password list with
+	 * @param loginPageURL The URL of the log in page
+	 */
+	private static void guessCommonPasswords(WebClient webClient, String user, URL loginPageURL){
+		ArrayList<String> commonPasswords = new ArrayList<String>();
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(commonPasswordsFileLocation));
+			String line = br.readLine();
+
+			while (line != null) {
+				commonPasswords.add(line);
+				line = br.readLine();
+			}
+			br.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		for(String pw : commonPasswords){
+			try {
+				HtmlPage page = webClient.getPage(loginPageURL);
+				doLogin(webClient, page, user, pw);
+			} catch (FailingHttpStatusCodeException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 }
