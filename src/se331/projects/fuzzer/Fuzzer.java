@@ -39,7 +39,8 @@ public class Fuzzer {
 	private static final String commonPasswordsFileLocation = "conf/CommonPasswords.txt";
 	private static final String[] invalidLoginMessages = {
 		"You supplied an invalid name or password.",
-		"Login failed"
+		"Login failed",
+		"Invalid username or password. Signon failed."
 	};
 	private static enum completenessOption {
 		RANDOM, FULL
@@ -365,6 +366,10 @@ public class Fuzzer {
 	
 	
 	/**
+	 * @author alh9634
+	 * 
+	 * Using the common passwords file to get a list of common passwords and uses those passwords to guess the specified user's password
+	 * 
 	 * @param webClient The WebClient to perform the web requests with
 	 * @param user The username to test the common password list with
 	 * @param loginPageURL The URL of the log in page
@@ -396,6 +401,13 @@ public class Fuzzer {
 		}
 	}
 	
+	/**
+	 * @author alh9634
+	 * 
+	 * Enters inputs into the input fields and submits to see what the new URL is
+	 * 
+	 * @param page The HTML page for testing input fields
+	 */
 	private static void inputIntoFields(HtmlPage page) {
 		Random r = new Random();
 		int num = r.nextInt(100);
