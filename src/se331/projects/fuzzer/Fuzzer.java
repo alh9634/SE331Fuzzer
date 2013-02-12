@@ -12,9 +12,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 
 import com.gargoylesoftware.htmlunit.CookieManager;
+import com.gargoylesoftware.htmlunit.ElementNotFoundException;
 import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
 import com.gargoylesoftware.htmlunit.HttpMethod;
 import com.gargoylesoftware.htmlunit.WebClient;
@@ -34,6 +36,7 @@ public class Fuzzer {
 	private static ArrayList<URL> urlsVisited;
 	//private static final String baseURL = "http://127.0.0.1:8080/jpetstore/";
 	private static final String baseURL = "http://127.0.0.1/dvwa/";
+	private static final String loginURL = "http://127.0.0.1/dvwa/login.php";
 	private static HashMap<String, List<String>> urlParameterMap = new HashMap<String, List<String>>();
 	private static Set<Cookie> cookiesSet = new HashSet<Cookie>();
 	private static String username = "";
@@ -44,6 +47,10 @@ public class Fuzzer {
 		"You supplied an invalid name or password.",
 		"Login failed"
 	};
+	private static enum completenessOption {
+		RANDOM, FULL
+	}
+	private static completenessOption completenessMode = completenessOption.RANDOM;
 
 	public static void main(String[] args) throws FailingHttpStatusCodeException, MalformedURLException, IOException {
 		WebClient webClient = new WebClient();
@@ -63,7 +70,7 @@ public class Fuzzer {
 		printURLMap();
 		webClient.closeAllWindows();
 		System.out.println("\n\nGuessing Common Passwords");
-		guessCommonPasswords(webClient, "admin", new URL("http://127.0.0.1:85/dvwa/login.php"));
+		guessCommonPasswords(webClient, "admin", new URL(loginURL));
 	}
 	
 	/**
@@ -150,6 +157,7 @@ public class Fuzzer {
 		try {
 			page = webClient.getPage(myURL);
 			printFormInputs(page);
+			inputIntoFields(page);
 		} catch (Exception e) {
 			System.out.println("External/Invalid URL: " + myURL);
 			return;
@@ -308,7 +316,7 @@ public class Fuzzer {
 				if(successfulGuess){
 					System.out.println("Successfull password guess");
 				}else{
-					System.out.println("Common passwords did not work");
+					System.out.println("Common password did not work");
 				}
 			}
 		} catch (FailingHttpStatusCodeException e) {
@@ -367,6 +375,41 @@ public class Fuzzer {
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
+		}
+	}
+	
+	private static void inputIntoFields(HtmlPage page) {
+		Random r = new Random();
+		int num = r.nextInt(100);
+		int percSkip = 50;
+		
+		DomNodeList<HtmlElement> inputs = page.getElementsByTagName("input");
+		if(completenessMode.equals(completenessOption.RANDOM) && num >= percSkip){
+			System.out.println("Random mode is on and skipping inputting");
+			return;
+		}
+		
+		List<HtmlForm> formElements = page.getForms();
+		if(formElements.size() == 0){
+			System.out.println("No submit element so input fields won't be testeds");
+			return;
+		}
+		System.out.println("Inputting input on page URL: " + page.getUrl());
+		for (int c=0; c<inputs.size(); c++) {
+			num = r.nextInt(100);
+			if (completenessMode.equals(completenessOption.RANDOM) && num < percSkip ) {
+				HtmlElement el = inputs.get(c);
+				HtmlInput input = (HtmlInput) el;
+				input.setValueAttribute("test" + c);
+				System.out.println("Adding value for field ID: " + input.getNameAttribute() + " Value: test" + c);
+			}
+		}
+		HtmlPage nextPage;
+		try {
+			nextPage = formElements.get(0).click();
+			System.out.println("Now at the URL: " + nextPage.getUrl());
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 }
