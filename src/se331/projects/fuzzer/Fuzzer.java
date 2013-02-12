@@ -10,17 +10,13 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
 import com.gargoylesoftware.htmlunit.CookieManager;
-import com.gargoylesoftware.htmlunit.ElementNotFoundException;
 import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
-import com.gargoylesoftware.htmlunit.HttpMethod;
 import com.gargoylesoftware.htmlunit.WebClient;
-import com.gargoylesoftware.htmlunit.WebRequest;
 import com.gargoylesoftware.htmlunit.html.DomNodeList;
 import com.gargoylesoftware.htmlunit.html.HtmlAnchor;
 import com.gargoylesoftware.htmlunit.html.HtmlElement;
@@ -28,15 +24,15 @@ import com.gargoylesoftware.htmlunit.html.HtmlForm;
 import com.gargoylesoftware.htmlunit.html.HtmlInput;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import com.gargoylesoftware.htmlunit.util.Cookie;
-import com.gargoylesoftware.htmlunit.util.NameValuePair;
 import com.gargoylesoftware.htmlunit.util.UrlUtils;
 
 public class Fuzzer {
 	
 	private static ArrayList<URL> urlsVisited;
-	//private static final String baseURL = "http://127.0.0.1:8080/jpetstore/";
-	private static final String baseURL = "http://127.0.0.1/dvwa/";
-	private static final String loginURL = "http://127.0.0.1/dvwa/login.php";
+	private static final String baseURL = "http://127.0.0.1:8080/jpetstore/";
+	private static final String loginURL = "http://127.0.0.1:8080/jpetstore/actions/Account.action?signonForm=";
+	//private static final String baseURL = "http://127.0.0.1/dvwa/";
+	//private static final String loginURL = "http://127.0.0.1/dvwa/login.php";
 	private static HashMap<String, List<String>> urlParameterMap = new HashMap<String, List<String>>();
 	private static Set<Cookie> cookiesSet = new HashSet<Cookie>();
 	private static String username = "";
@@ -57,8 +53,8 @@ public class Fuzzer {
 		webClient.setPrintContentOnFailingStatusCode(false);
 		webClient.setJavaScriptEnabled(true);
 		
-		username = "admin";
-		password = "password";
+		username = "j2ee";
+		password = "j2ee";
 		
 		printLinkDiscovery(webClient);
 		
@@ -266,11 +262,9 @@ public class Fuzzer {
 	private static URL doLogin(WebClient client, HtmlPage loginPage, String user, String pw) {
 		String userField = "";
 		String pwField = "";
-		String method = "";
 		String loginBtn = "";
 		HtmlForm loginForm = null;
 		URL nextUrl = null;
-		URL targetUrl = null;
 		try {
 			List<HtmlElement> inputs = loginPage.getElementsByTagName("input");
 			for ( HtmlElement el : inputs ) {
@@ -280,25 +274,18 @@ public class Fuzzer {
 				if ( type.equals("text") && i.getNameAttribute().matches(".*user.*") && userField.isEmpty() ) {
 					userField = i.getNameAttribute();
 					System.out.println("User Field: " + userField);
-				} else if ( type.matches(".*pass.*|.*pw.*") && pwField.isEmpty() ) {
+				} else if ( type.equals("password") && pwField.isEmpty() ) {
 					pwField = i.getNameAttribute();
 					System.out.println("Password Field: " + pwField);
 					loginForm = i.getEnclosingFormOrDie();
-					
-					if ( targetUrl == null ) {
-						targetUrl = new URL(UrlUtils.resolveUrl(baseURL, loginForm.getActionAttribute()));
-						System.out.println("Login Target: " + targetUrl.toString());
-					}
-					if ( method.isEmpty() ) {
-						method = loginForm.getMethodAttribute().toUpperCase();
-					}
-				} else if ( type.equals("submit") && loginBtn.isEmpty() ) {
+				} else if ( type.equals("submit") && i.getValueAttribute().matches("(?i:log.*in.*)") && loginBtn.isEmpty() ) {
 					loginBtn = i.getNameAttribute();
+					System.out.println("Submit Button: " + loginBtn);
 				}
 			}
 			
-			if ( !pwField.isEmpty() && ! userField.isEmpty() && targetUrl != null ) {
-				System.out.println(String.format("Attempting to login to '%s' with username '%s' and password '%s'", targetUrl, user, pw));
+			if ( !pwField.isEmpty() && !userField.isEmpty() && !loginBtn.isEmpty() ) {
+				System.out.println(String.format("Attempting to login to '%s' with username '%s' and password '%s'", loginPage.getUrl(), user, pw));
 				
 				loginForm.getInputByName(userField).setValueAttribute(user);
 				loginForm.getInputByName(pwField).setValueAttribute(pw);
@@ -318,6 +305,8 @@ public class Fuzzer {
 				}else{
 					System.out.println("Common password did not work");
 				}
+			} else {
+				System.out.println("Could not find user field, password field, or login button");
 			}
 		} catch (FailingHttpStatusCodeException e) {
 			e.printStackTrace();
