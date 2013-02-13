@@ -24,7 +24,6 @@ import com.gargoylesoftware.htmlunit.html.HtmlForm;
 import com.gargoylesoftware.htmlunit.html.HtmlInput;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import com.gargoylesoftware.htmlunit.util.Cookie;
-import com.gargoylesoftware.htmlunit.util.UrlUtils;
 
 public class Fuzzer {
 	
@@ -46,8 +45,22 @@ public class Fuzzer {
 		RANDOM, FULL
 	}
 	private static completenessOption completenessMode = completenessOption.RANDOM;
+	private static final String sensitiveDataFileLocation = "conf/sensitiveData.txt";
+	private static ArrayList<String> sensitiveDataList = null;
+	private static long requestInterval = 0;
 
 	public static void main(String[] args) throws FailingHttpStatusCodeException, MalformedURLException, IOException {
+		if ( args.length == 1 ) {
+			int arg = Integer.parseInt(args[0]);
+			if ( arg >= 0 ) {
+				requestInterval = Integer.parseInt(args[0]) * 1000;
+				System.out.println(String.format("Request interval set to %s seconds", args[0]));
+			} else {
+				System.out.println("Request interval must be >= 0");
+				System.exit(1);
+			}
+				
+		}
 		fuzzDVWA();
 		fuzzJPetStore();
 		fuzzBodgeIt();
@@ -184,6 +197,7 @@ public class Fuzzer {
 			page = webClient.getPage(myURL);
 			printFormInputs(page);
 			inputIntoFields(page);
+			printSensitiveData(page);
 		} catch (Exception e) {
 			System.out.println("External/Invalid URL: " + myURL);
 			return;
@@ -198,6 +212,11 @@ public class Fuzzer {
 				return;
 			}
 			if (!urlsVisited.contains(tempURL) && tempURL.getHost().equals(myURL.getHost())) {
+				try {
+					Thread.sleep(requestInterval);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 				printLinkDiscovery_helper(webClient, tempURL);
 			}
 		}
@@ -319,6 +338,7 @@ public class Fuzzer {
 				
 				loginForm.getInputByName(userField).setValueAttribute(user);
 				loginForm.getInputByName(pwField).setValueAttribute(pw);
+				Thread.sleep(requestInterval);
 				HtmlPage loggedInPage = loginForm.getInputByName(loginBtn).click();
 				
 				nextUrl = loggedInPage.getUrl();
@@ -341,6 +361,8 @@ public class Fuzzer {
 		} catch (FailingHttpStatusCodeException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
 		
@@ -393,9 +415,12 @@ public class Fuzzer {
 			try {
 				HtmlPage page = webClient.getPage(loginPageURL);
 				doLogin(webClient, page, user, pw);
+				Thread.sleep(requestInterval);
 			} catch (FailingHttpStatusCodeException e) {
 				e.printStackTrace();
 			} catch (IOException e) {
+				e.printStackTrace();
+			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
@@ -436,10 +461,61 @@ public class Fuzzer {
 		}
 		HtmlPage nextPage;
 		try {
+			Thread.sleep(requestInterval);
 			nextPage = formElements.get(0).click();
 			System.out.println("Now at the URL: " + nextPage.getUrl());
 		} catch (IOException e) {
 			e.printStackTrace();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	private static void loadSensitiveDataList( String sensitiveDataFile ) {
+		sensitiveDataList = new ArrayList<String>();
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(sensitiveDataFile));
+			String line = br.readLine();
+
+			while (line != null) {
+				line = line.trim();
+				if ( !line.isEmpty() ) {
+					sensitiveDataList.add(line.trim());
+				}
+				line = br.readLine();
+			}
+			br.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		System.out.println("Sensitive data list:");
+		for ( String s : sensitiveDataList ) {
+			System.out.println("\t" + s);
+		}
+	}
+	
+	private static ArrayList<String> checkForSensitiveData(HtmlPage page) {
+		ArrayList<String> found = new ArrayList<String>();
+		if ( sensitiveDataList == null ) {
+			loadSensitiveDataList( sensitiveDataFileLocation );
+		}
+		
+		for ( String s : sensitiveDataList ) {
+			if ( page.asText().contains(s) ) {
+				found.add(s);
+			}
+		}
+		
+		return found;
+	}
+	
+	private static void printSensitiveData( HtmlPage page ) {
+		ArrayList<String> data = checkForSensitiveData( page );
+		if ( !data.isEmpty() ) {
+			System.out.println(String.format("Found the following sensitive data in %s", page.getUrl()));
+			for ( String s : data ) {
+				System.out.println("\t" + s);
+			}
 		}
 	}
 }
