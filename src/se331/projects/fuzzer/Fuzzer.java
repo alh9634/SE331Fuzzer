@@ -36,6 +36,7 @@ public class Fuzzer {
 	private static String password = "";
 	private static final String guessURLFileLocation = "conf/GuessURLs.txt";
 	private static final String commonPasswordsFileLocation = "conf/CommonPasswords.txt";
+	private static final String inputFileLocation = "conf/formInput.txt";
 	private static final String[] invalidLoginMessages = {
 		"You supplied an invalid name or password.",
 		"Login failed",
@@ -436,9 +437,27 @@ public class Fuzzer {
 	private static void inputIntoFields(HtmlPage page) {
 		Random r = new Random();
 		int num = r.nextInt(100);
-		int percSkip = 50;
+		int percSkip = 80;
+		//maintain the inputs from forminput.txt
+		ArrayList<String> formInput = new ArrayList<String>();
+		//maintain which inputs are being used by the pages
+		ArrayList<String> selectInputs = new ArrayList<String>();
+		//read in the input list
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(inputFileLocation));
+			String line = br.readLine();
+
+			while (line != null) {
+				formInput.add(line);
+				line = br.readLine();
+			}
+			br.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		
 		DomNodeList<HtmlElement> inputs = page.getElementsByTagName("input");
+		
 		if(completenessMode.equals(completenessOption.RANDOM) && num >= percSkip){
 			System.out.println("Random mode is on and skipping inputting");
 			return;
@@ -446,7 +465,7 @@ public class Fuzzer {
 		
 		List<HtmlForm> formElements = page.getForms();
 		if(formElements.size() == 0){
-			System.out.println("No submit element so input fields won't be testeds");
+			System.out.println("No submit element so input fields won't be tested");
 			return;
 		}
 		System.out.println("Inputting input on page URL: " + page.getUrl());
@@ -455,8 +474,11 @@ public class Fuzzer {
 			if (completenessMode.equals(completenessOption.RANDOM) && num < percSkip ) {
 				HtmlElement el = inputs.get(c);
 				HtmlInput input = (HtmlInput) el;
-				input.setValueAttribute("test" + c);
-				System.out.println("Adding value for field ID: " + input.getNameAttribute() + " Value: test" + c);
+				String newValue = formInput.get(r.nextInt(formInput.size()));
+				input.setValueAttribute(newValue);
+				selectInputs.add(newValue);
+				System.out.println("Adding value for field ID: " + input.getNameAttribute() + " Value: " + input.asText());
+				
 			}
 		}
 		HtmlPage nextPage;
@@ -464,6 +486,22 @@ public class Fuzzer {
 			Thread.sleep(requestInterval);
 			nextPage = formElements.get(0).click();
 			System.out.println("Now at the URL: " + nextPage.getUrl());
+			//Check if any of the inputs from the file are different between the pages. If there is a difference some change
+			//to the input occurred, add to sanitized Inputs.
+			ArrayList<String> sanitizedInputs = new ArrayList<String>();
+			for(String s : selectInputs){
+				if(page.asText().contains(s) && !nextPage.asText().contains(s)){
+					sanitizedInputs.add(s);
+				}
+			}
+			if(!sanitizedInputs.isEmpty()){
+				for(String sI : sanitizedInputs){
+					System.out.println("Input " + sI + " was sanitized by site ");
+				}
+			}
+			else{
+				System.out.println("No input sanitized by site");
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		} catch (InterruptedException e) {
