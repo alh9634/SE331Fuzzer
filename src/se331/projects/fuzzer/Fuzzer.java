@@ -442,7 +442,7 @@ public class Fuzzer {
 	
 	/**
 	 * @author alh9634
-	 * 
+	 * @author pxm9906
 	 * Enters inputs into the input fields and submits to see what the new URL is
 	 * 
 	 * @param page The HTML page for testing input fields
