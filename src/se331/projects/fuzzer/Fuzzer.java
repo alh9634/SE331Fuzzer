@@ -47,6 +47,7 @@ public class Fuzzer {
 	private static completenessOption completenessMode = completenessOption.RANDOM;
 	private static final String sensitiveDataFileLocation = "conf/sensitiveData.txt";
 	private static ArrayList<String> sensitiveDataList = null;
+	private static HashMap<String, ArrayList<String>> foundSesitiveData = new HashMap<String, ArrayList<String>>();
 	private static long requestInterval = 0;
 
 	public static void main(String[] args) throws FailingHttpStatusCodeException, MalformedURLException, IOException {
@@ -110,6 +111,7 @@ public class Fuzzer {
 		webClient.closeAllWindows();
 		System.out.println("\n\nGuessing Common Passwords");
 		guessCommonPasswords(webClient, "admin", new URL(loginURL));
+		printSensitiveData();
 	}
 	
 	/**
@@ -197,7 +199,7 @@ public class Fuzzer {
 			page = webClient.getPage(myURL);
 			printFormInputs(page);
 			inputIntoFields(page);
-			printSensitiveData(page);
+			checkForSensitiveData(page);
 		} catch (Exception e) {
 			System.out.println("External/Invalid URL: " + myURL);
 			return;
@@ -322,14 +324,14 @@ public class Fuzzer {
 				
 				if ( type.equals("text") && i.getNameAttribute().matches(".*user.*") && userField.isEmpty() ) {
 					userField = i.getNameAttribute();
-					System.out.println("User Field: " + userField);
+					//System.out.println("User Field: " + userField);
 				} else if ( type.equals("password") && pwField.isEmpty() ) {
 					pwField = i.getNameAttribute();
-					System.out.println("Password Field: " + pwField);
+					//System.out.println("Password Field: " + pwField);
 					loginForm = i.getEnclosingFormOrDie();
 				} else if ( type.equals("submit") && i.getValueAttribute().matches("(?i:log.*in.*)") && loginBtn.isEmpty() ) {
 					loginBtn = i.getNameAttribute();
-					System.out.println("Submit Button: " + loginBtn);
+					//System.out.println("Submit Button: " + loginBtn);
 				}
 			}
 			
@@ -342,7 +344,7 @@ public class Fuzzer {
 				HtmlPage loggedInPage = loginForm.getInputByName(loginBtn).click();
 				
 				nextUrl = loggedInPage.getUrl();
-				System.out.println("Post-login URL: " + nextUrl.toString());
+				//System.out.println("Post-login URL: " + nextUrl.toString());
 				
 				boolean successfulGuess = true;
 				for(String invalidMsg : invalidLoginMessages){
@@ -356,7 +358,7 @@ public class Fuzzer {
 					System.out.println("Common password did not work");
 				}
 			} else {
-				System.out.println("Could not find user field, password field, or login button");
+				System.out.println("Could not find user field, password field, and/or login button");
 			}
 		} catch (FailingHttpStatusCodeException e) {
 			e.printStackTrace();
@@ -494,7 +496,7 @@ public class Fuzzer {
 		}
 	}
 	
-	private static ArrayList<String> checkForSensitiveData(HtmlPage page) {
+	private static void checkForSensitiveData(HtmlPage page) {
 		ArrayList<String> found = new ArrayList<String>();
 		if ( sensitiveDataList == null ) {
 			loadSensitiveDataList( sensitiveDataFileLocation );
@@ -506,15 +508,21 @@ public class Fuzzer {
 			}
 		}
 		
-		return found;
+		if ( !foundSesitiveData.containsKey(page.getUrl().toString()) ) {
+			foundSesitiveData.put(page.getUrl().toString(), new ArrayList<String>());
+		}
+		
+		foundSesitiveData.get(page.getUrl().toString()).addAll(found);
 	}
 	
-	private static void printSensitiveData( HtmlPage page ) {
-		ArrayList<String> data = checkForSensitiveData( page );
-		if ( !data.isEmpty() ) {
-			System.out.println(String.format("Found the following sensitive data in %s", page.getUrl()));
-			for ( String s : data ) {
-				System.out.println("\t" + s);
+	private static void printSensitiveData( ) {
+		for ( String url : foundSesitiveData.keySet() ) {
+			ArrayList<String> data = foundSesitiveData.get(url);
+			if ( !data.isEmpty() ) {
+				System.out.println(String.format("Found the following sensitive data in %s", url));
+				for ( String s : foundSesitiveData.get(url) ) {
+					System.out.println("\t" + s);
+				}
 			}
 		}
 	}
