@@ -64,8 +64,8 @@ public class Fuzzer {
 				
 		}
 		fuzzDVWA();
-		fuzzJPetStore();
-		fuzzBodgeIt();
+		//fuzzJPetStore();
+		//fuzzBodgeIt();
 	}
 	
 	private static void fuzzDVWA() throws MalformedURLException {
@@ -109,9 +109,9 @@ public class Fuzzer {
 		printCookies(webClient.getCookieManager());
 		System.out.println("\n\nURL Map:");
 		printURLMap();
-		webClient.closeAllWindows();
 		System.out.println("\n\nGuessing Common Passwords");
 		guessCommonPasswords(webClient, "admin", new URL(loginURL));
+		webClient.closeAllWindows();
 		printSensitiveData();
 	}
 	
@@ -199,12 +199,19 @@ public class Fuzzer {
 		try {
 			page = webClient.getPage(myURL);
 			printFormInputs(page);
-			inputIntoFields(page);
 			checkForSensitiveData(page);
+			if ( isLoginPage(page) ) {
+				URL loggedInURL = doLogin( webClient, page, username, password );
+				if (loggedInURL != null && !urlsVisited.contains(loggedInURL) ) {
+					printLinkDiscovery_helper(webClient, loggedInURL);
+				}
+			}
+			inputIntoFields(page);
 		} catch (Exception e) {
 			System.out.println("External/Invalid URL: " + myURL);
 			return;
 		}
+		
 		List<HtmlAnchor> links = page.getAnchors();
 		for (HtmlAnchor link : links) {
 			URL tempURL = null;
@@ -221,13 +228,6 @@ public class Fuzzer {
 					e.printStackTrace();
 				}
 				printLinkDiscovery_helper(webClient, tempURL);
-			}
-		}
-		
-		if ( isLoginPage(page) ) {
-			URL loggedInURL = doLogin( webClient, page, username, password );
-			if (loggedInURL != null && !urlsVisited.contains(loggedInURL) ) {
-				printLinkDiscovery_helper(webClient, loggedInURL);
 			}
 		}
 	}
@@ -312,9 +312,9 @@ public class Fuzzer {
 	 * @return post-login url
 	 */
 	private static URL doLogin(WebClient client, HtmlPage loginPage, String user, String pw) {
-		String userField = "";
-		String pwField = "";
-		String loginBtn = "";
+		HtmlInput userField = null;
+		HtmlInput pwField = null;
+		HtmlInput loginBtn = null;
 		HtmlForm loginForm = null;
 		URL nextUrl = null;
 		try {
@@ -323,26 +323,26 @@ public class Fuzzer {
 				HtmlInput i = (HtmlInput)el;
 				String type = i.getTypeAttribute();
 				
-				if ( type.equals("text") && i.getNameAttribute().matches(".*user.*") && userField.isEmpty() ) {
-					userField = i.getNameAttribute();
+				if ( type.equals("text") && i.getNameAttribute().matches(".*user.*") && userField == null ) {
+					userField = i;
 					//System.out.println("User Field: " + userField);
-				} else if ( type.equals("password") && pwField.isEmpty() ) {
-					pwField = i.getNameAttribute();
+				} else if ( type.equals("password") && pwField == null ) {
+					pwField = i;
 					//System.out.println("Password Field: " + pwField);
 					loginForm = i.getEnclosingFormOrDie();
-				} else if ( type.equals("submit") && i.getValueAttribute().matches("(?i:log.*in.*)") && loginBtn.isEmpty() ) {
-					loginBtn = i.getNameAttribute();
+				} else if ( type.equals("submit") && i.getValueAttribute().matches("(?i:log.*in.*)") && loginBtn == null ) {
+					loginBtn = i;
 					//System.out.println("Submit Button: " + loginBtn);
 				}
 			}
 			
-			if ( !pwField.isEmpty() && !userField.isEmpty() && !loginBtn.isEmpty() ) {
+			if ( pwField != null && userField != null && loginBtn != null ) {
 				System.out.println(String.format("Attempting to login to '%s' with username '%s' and password '%s'", loginPage.getUrl(), user, pw));
 				
-				loginForm.getInputByName(userField).setValueAttribute(user);
-				loginForm.getInputByName(pwField).setValueAttribute(pw);
+				userField.setValueAttribute(user);
+				pwField.setValueAttribute(pw);
 				Thread.sleep(requestInterval);
-				HtmlPage loggedInPage = loginForm.getInputByName(loginBtn).click();
+				HtmlPage loggedInPage = loginBtn.click();
 				
 				nextUrl = loggedInPage.getUrl();
 				//System.out.println("Post-login URL: " + nextUrl.toString());
@@ -381,12 +381,16 @@ public class Fuzzer {
 	 */
 	private static boolean isLoginPage( HtmlPage page ) {
 		List<HtmlElement> inputs = page.getElementsByTagName("input");
+		boolean hasUserInput = false;
+		boolean hasPwInput = false;
 		for ( HtmlElement el : inputs ) {
 			if ( el.getAttribute("type").equalsIgnoreCase("password") ) {
-				return true;
+				hasPwInput = true;
+			} else if ( el.getAttribute("name").matches("(?i:.*user(name)*.*)") ) {
+				hasUserInput = true;
 			}
 		}
-		return false;
+		return hasUserInput && hasPwInput;
 	}
 	
 	
@@ -486,23 +490,32 @@ public class Fuzzer {
 		HtmlPage nextPage;
 		try {
 			Thread.sleep(requestInterval);
-			nextPage = formElements.get(0).click();
-			System.out.println("Now at the URL: " + nextPage.getUrl());
-			//Check if any of the inputs from the file are different between the pages. If there is a difference some change
-			//to the input occurred, add to sanitized Inputs.
-			ArrayList<String> sanitizedInputs = new ArrayList<String>();
-			for(String s : selectInputs){
-				if(page.asText().contains(s) && !nextPage.asText().contains(s)){
-					sanitizedInputs.add(s);
+			HtmlElement submitBtn = null;
+			for ( HtmlElement el : page.getElementsByTagName("input") ) {
+				if ( el.getAttribute("type").equals("submit") ) {
+					submitBtn = el;
+					break;
 				}
 			}
-			if(!sanitizedInputs.isEmpty()){
-				for(String sI : sanitizedInputs){
-					System.out.println("Input " + sI + " was sanitized by site ");
+			if ( submitBtn != null ) {
+				nextPage = submitBtn.click();
+				System.out.println("Now at the URL: " + nextPage.getUrl());
+				//Check if any of the inputs from the file are different between the pages. If there is a difference some change
+				//to the input occurred, add to sanitized Inputs.
+				ArrayList<String> sanitizedInputs = new ArrayList<String>();
+				for(String s : selectInputs){
+					if(page.asText().contains(s) && !nextPage.asText().contains(s)){
+						sanitizedInputs.add(s);
+					}
 				}
-			}
-			else{
-				System.out.println("No input sanitized by site");
+				if(!sanitizedInputs.isEmpty()){
+					for(String sI : sanitizedInputs){
+						System.out.println("Input " + sI + " was sanitized by site ");
+					}
+				}
+				else{
+					System.out.println("No input sanitized by site");
+				}
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
