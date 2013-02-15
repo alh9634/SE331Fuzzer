@@ -44,7 +44,7 @@ public class Fuzzer {
 	private static enum completenessOption {
 		RANDOM, FULL
 	}
-	private static completenessOption completenessMode = completenessOption.RANDOM;
+	private static completenessOption completenessMode = completenessOption.FULL;
 	private static final String sensitiveDataFileLocation = "conf/sensitiveData.txt";
 	private static ArrayList<String> sensitiveDataList = null;
 	private static HashMap<String, ArrayList<String>> foundSesitiveData = new HashMap<String, ArrayList<String>>();
@@ -87,8 +87,8 @@ public class Fuzzer {
 	
 	private static void fuzzBodgeIt() throws MalformedURLException {
 		//TODO Set these to working credentials
-		username = "";
-		password = "";
+		username = "user@wat.com";
+		password = "password";
 		baseURL = "http://127.0.0.1:8080/bodgeit";
 		loginURL = "http://127.0.0.1:8080/bodgeit/login.jsp";
 
@@ -454,7 +454,7 @@ public class Fuzzer {
 		System.out.println("Inputting input on page URL: " + page.getUrl());
 		for (int c=0; c<inputs.size(); c++) {
 			num = r.nextInt(100);
-			if (completenessMode.equals(completenessOption.RANDOM) && num < percSkip ) {
+			if (completenessMode.equals(completenessOption.RANDOM) && num < percSkip || completenessMode.equals(completenessOption.FULL) ) {
 				HtmlElement el = inputs.get(c);
 				HtmlInput input = (HtmlInput) el;
 				input.setValueAttribute("test" + c);
