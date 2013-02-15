@@ -93,6 +93,7 @@ Admin' OR '
 ' or 1 in (select @@version)--
 ' union all select @@version--
 ' OR 'unusual' = 'unusual'
+' OR 'unusual' = 'unusual''
 ' OR 'something' = 'some'+'thing'
 ' OR 2 > 1
 ' OR 'text' > 't'

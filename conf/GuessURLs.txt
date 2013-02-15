@@ -3,3 +3,4 @@ about.html
 test.html
 hello.html
 home.jsp
+admin.jsp

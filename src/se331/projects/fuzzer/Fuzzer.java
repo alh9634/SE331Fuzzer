@@ -63,9 +63,12 @@ public class Fuzzer {
 			}
 				
 		}
+		
+		// Change this to change the completeness mode (RANDOM or FULL)
+		completenessMode = completenessOption.FULL;
 		fuzzDVWA();
-		//fuzzJPetStore();
-		//fuzzBodgeIt();
+		fuzzJPetStore();
+		fuzzBodgeIt();
 	}
 	
 	private static void fuzzDVWA() throws MalformedURLException {
@@ -90,7 +93,7 @@ public class Fuzzer {
 		//TODO Set these to working credentials
 		username = "user@wat.com";
 		password = "password";
-		baseURL = "http://127.0.0.1:8080/bodgeit";
+		baseURL = "http://127.0.0.1:8080/bodgeit/";
 		loginURL = "http://127.0.0.1:8080/bodgeit/login.jsp";
 
 		runFuzzer();
@@ -100,6 +103,8 @@ public class Fuzzer {
 		WebClient webClient = new WebClient();
 		webClient.setPrintContentOnFailingStatusCode(false);
 		webClient.setJavaScriptEnabled(true);
+		
+		webClient.getCookieManager().addCookie(new Cookie("127.0.0.1", "security", "medium", "/dvwa", null, false));
 		
 		printLinkDiscovery(webClient);
 		
@@ -192,13 +197,13 @@ public class Fuzzer {
 		if(myURL == null){
 			return;
 		}
-		System.out.println("Link discovered through crawl: " + myURL);
+		//System.out.println("Link discovered through crawl: " + myURL);
 		urlsVisited.add(myURL);
 		ParseURL(myURL);
 		HtmlPage page;
 		try {
 			page = webClient.getPage(myURL);
-			printFormInputs(page);
+			//printFormInputs(page);
 			checkForSensitiveData(page);
 			if ( isLoginPage(page) ) {
 				URL loggedInURL = doLogin( webClient, page, username, password );
@@ -296,8 +301,10 @@ public class Fuzzer {
 		System.out.println("URL Parameter Map: ");
 		Set<String> keys = urlParameterMap.keySet();
 		for(String key : keys){
-			System.out.println("\tURL: " + key);
-			System.out.println("\tParameters: " + urlParameterMap.get(key));
+			if ( !urlParameterMap.get(key).isEmpty() ) {
+				System.out.println("\tURL: " + key);
+				System.out.println("\tParameters: " + urlParameterMap.get(key));
+			}
 		}
 	}
 	
@@ -354,9 +361,9 @@ public class Fuzzer {
 					}
 				}
 				if(successfulGuess){
-					System.out.println("Successfull password guess");
+					System.out.println("Successfull login");
 				}else{
-					System.out.println("Common password did not work");
+					System.out.println("Login not successful");
 				}
 			} else {
 				System.out.println("Could not find user field, password field, and/or login button");
@@ -465,13 +472,13 @@ public class Fuzzer {
 		DomNodeList<HtmlElement> inputs = page.getElementsByTagName("input");
 		
 		if(completenessMode.equals(completenessOption.RANDOM) && num >= percSkip){
-			System.out.println("Random mode is on and skipping inputting");
+			//System.out.println("Random mode is on and skipping inputting");
 			return;
 		}
 		
 		List<HtmlForm> formElements = page.getForms();
 		if(formElements.size() == 0){
-			System.out.println("No submit element so input fields won't be tested");
+			//System.out.println("No submit element so input fields won't be tested");
 			return;
 		}
 		System.out.println("Inputting input on page URL: " + page.getUrl());
@@ -483,7 +490,7 @@ public class Fuzzer {
 				String newValue = formInput.get(r.nextInt(formInput.size()));
 				input.setValueAttribute(newValue);
 				selectInputs.add(newValue);
-				System.out.println("Adding value for field ID: " + input.getNameAttribute() + " Value: " + input.asText());
+				//System.out.println("Adding value for field ID: " + input.getNameAttribute() + " Value: " + input.asText());
 				
 			}
 		}
@@ -504,14 +511,16 @@ public class Fuzzer {
 				//to the input occurred, add to sanitized Inputs.
 				ArrayList<String> sanitizedInputs = new ArrayList<String>();
 				for(String s : selectInputs){
-					if(page.asText().contains(s) && !nextPage.asText().contains(s)){
+					if(page.asText().contains(s) && !nextPage.asText().contains(s.toUpperCase()) && !nextPage.asText().contains(s.toLowerCase())){
 						sanitizedInputs.add(s);
+					} else {
+						System.out.println("Input " + s + " was not sanitized");
 					}
 				}
 				if(!sanitizedInputs.isEmpty()){
-					for(String sI : sanitizedInputs){
-						System.out.println("Input " + sI + " was sanitized by site ");
-					}
+//					for(String sI : sanitizedInputs){
+//						System.out.println("Input " + sI + " was sanitized by site ");
+//					}
 				}
 				else{
 					System.out.println("No input sanitized by site");
